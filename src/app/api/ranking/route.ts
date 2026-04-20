@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET() {
-  const supabase = createBrowserSupabaseClient();
+  const supabase = createAdminSupabaseClient();
 
   const { data, error } = await supabase
     .from("profiles_scores")
@@ -12,7 +12,7 @@ export async function GET() {
   if (error) {
     return NextResponse.json(
       { error: "Erro ao buscar ranking." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
