@@ -20,8 +20,15 @@ export type Profile = {
   avatar: string;
 };
 
-export type DrinksCount = Record<DrinkKey, number>;
-
-export type ProfilesData = Record<ProfileName, DrinksCount>;
-
 export type ProfilePinMap = Record<ProfileName, string>;
+
+export type RankingRow = {
+  id: number;
+  profile_name: ProfileName;
+  drink: number;
+  cerveja: number;
+  whisky: number;
+  vinho: number;
+  espumante: number;
+  updated_at: string;
+};
