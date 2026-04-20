@@ -4,30 +4,27 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PinModal } from "@/components/PinModal";
 import { ProfileCard } from "@/components/ProfileCard";
-import { profilePins, profiles } from "@/data/profiles";
-import {
-  clearProfileAuth,
-  saveProfileAuth,
-  saveSelectedProfile,
-} from "@/lib/storage";
+import { profiles } from "@/data/profiles";
 import { ProfileName } from "@/types";
 
 export default function EnterPage() {
   const router = useRouter();
-  const [selectedProfile, setSelectedProfile] = useState<ProfileName | null>(
-    null,
-  );
+
+  const [selectedProfile, setSelectedProfile] =
+    useState<ProfileName | null>(null);
+
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const selectedProfileData = useMemo(() => {
-    return profiles.find((profile) => profile.id === selectedProfile);
+    return profiles.find(
+      (profile) => profile.id === selectedProfile
+    );
   }, [selectedProfile]);
 
   function handleSelectProfile(profile: ProfileName) {
-    clearProfileAuth();
-    saveSelectedProfile(profile);
     setSelectedProfile(profile);
     setPin("");
     setError("");
@@ -41,26 +38,56 @@ export default function EnterPage() {
     setSelectedProfile(null);
   }
 
-  function handleSubmitPin() {
+  async function handleSubmitPin() {
     if (!selectedProfile) return;
 
-    const correctPin = profilePins[selectedProfile];
+    try {
+      setIsLoading(true);
+      setError("");
 
-    if (pin === correctPin) {
-      saveProfileAuth(selectedProfile);
-      setIsModalOpen(false);
+      const response = await fetch("/api/auth-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          profileName: selectedProfile,
+          pin,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setError(result.error ?? "PIN inválido.");
+        return;
+      }
+
+      sessionStorage.setItem(
+        "selectedProfile",
+        selectedProfile
+      );
+
+      sessionStorage.setItem(
+        "profileAuthorized",
+        "true"
+      );
+
       router.push("/dashboard");
-      return;
+    } catch {
+      setError("Erro ao validar PIN.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setError("PIN incorreto.");
   }
 
   return (
     <main className="min-h-screen bg-[#f7f8f5] px-4 py-8 md:px-8">
-      <div className="mx-auto max-w-7xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
-        <header className="flex items-center justify-between bg-linear-to-r from-[#9bb6cb] to-[#c7d8cf] px-6 py-5 text-white">
-          <h1 className="text-3xl font-light">Bem-vindo(a)!</h1>
+      <div className="mx-auto max-w-7xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-lg">
+        <header className="flex items-center justify-between bg-gradient-to-r from-[#9bb6cb] to-[#c7d8cf] px-6 py-5 text-white">
+          <h1 className="text-3xl font-light">
+            Bem-vindo(a)!
+          </h1>
         </header>
 
         <section className="px-6 py-12 md:px-12 md:py-16">
@@ -68,6 +95,7 @@ export default function EnterPage() {
             <h2 className="text-3xl font-semibold tracking-wide text-[#2b2b2b] md:text-6xl">
               SELECIONE SEU PERFIL
             </h2>
+
             <p className="mt-3 text-lg text-slate-600 md:text-3xl">
               QUEM VAI BEBER HOJE?
             </p>
@@ -79,7 +107,9 @@ export default function EnterPage() {
                 key={profile.id}
                 name={profile.name}
                 avatar={profile.avatar}
-                onClick={() => handleSelectProfile(profile.id)}
+                onClick={() =>
+                  handleSelectProfile(profile.id)
+                }
               />
             ))}
           </div>
@@ -92,13 +122,16 @@ export default function EnterPage() {
         avatar={selectedProfileData?.avatar ?? ""}
         pin={pin}
         error={error}
-        onPinChange={(value) => {
-          setPin(value);
-          setError("");
-        }}
+        onPinChange={setPin}
         onClose={handleCloseModal}
         onSubmit={handleSubmitPin}
       />
+
+      {isLoading ? (
+        <div className="fixed bottom-4 right-4 rounded-xl bg-black px-4 py-2 text-white">
+          Validando...
+        </div>
+      ) : null}
     </main>
   );
 }

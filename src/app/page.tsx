@@ -2,56 +2,28 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { drinks } from "@/data/drinks";
-import { getGroupTotal, getRanking, initialProfilesData } from "@/lib/utils";
-import { ProfilesData } from "@/types";
-
-const STORAGE_KEY = "ranking-bebidas-data";
-const serverSnapshot: ProfilesData = initialProfilesData();
-
-let cachedRaw = "";
-let cachedSnapshot: ProfilesData = serverSnapshot;
-
-function subscribe(callback: () => void) {
-  window.addEventListener("storage", callback);
-  return () => window.removeEventListener("storage", callback);
-}
-
-function getSnapshot(): ProfilesData {
-  if (typeof window === "undefined") return serverSnapshot;
-
-  const raw = localStorage.getItem(STORAGE_KEY) ?? "";
-
-  if (raw === cachedRaw) {
-    return cachedSnapshot;
-  }
-
-  cachedRaw = raw;
-
-  if (!raw) {
-    cachedSnapshot = initialProfilesData();
-    return cachedSnapshot;
-  }
-
-  try {
-    cachedSnapshot = JSON.parse(raw) as ProfilesData;
-    return cachedSnapshot;
-  } catch {
-    cachedSnapshot = initialProfilesData();
-    return cachedSnapshot;
-  }
-}
-
-function getServerSnapshot(): ProfilesData {
-  return serverSnapshot;
-}
+import { RankingRow } from "@/types";
+import { getGroupTotal, getProfileTotal, getRanking } from "@/lib/utils";
 
 export default function PublicRankingPage() {
-  const data = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [rows, setRows] = useState<RankingRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const ranking = useMemo(() => getRanking(data), [data]);
-  const totalGeral = useMemo(() => getGroupTotal(data), [data]);
+  useEffect(() => {
+    fetch("/api/ranking")
+      .then((res) => res.json())
+      .then((data) => {
+        setRows(Array.isArray(data) ? data : []);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const ranking = useMemo(() => getRanking(rows), [rows]);
+  const totalGeral = useMemo(() => getGroupTotal(rows), [rows]);
 
   return (
     <main className="min-h-screen bg-[#f7f8f5] px-4 py-8 md:px-8">
@@ -87,45 +59,43 @@ export default function PublicRankingPage() {
 
             <div className="mt-5 grid gap-4">
               {ranking.map((item, index) => {
-                const max = ranking[0]?.total || 1;
-                const width = max > 0 ? `${(item.total / max) * 100}%` : "0%";
+                const first = ranking[0];
+                const max = first ? getProfileTotal(first) : 1;
+                const total = getProfileTotal(item);
+                const width = max > 0 ? `${(total / max) * 100}%` : "0%";
 
                 return (
                   <div
-                    key={item.name}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-white/70 p-3"
+                    key={item.profile_name}
+                    className="grid items-center gap-3 rounded-xl bg-white/70 p-3 md:grid-cols-[260px_1fr_100px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl font-semibold text-[#2b2b2b] md:text-3xl">
+                    <div className="flex items-center gap-3 text-xl font-semibold text-[#2b2b2b] md:text-3xl">
+                      <span>
                         {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
                       </span>
 
                       <div className="h-12 w-12 overflow-hidden rounded-full border-2 border-white shadow-sm md:h-14 md:w-14">
                         <Image
-                          src={`/avatars/${item.name.toLowerCase()}.jpeg`}
-                          alt={item.name}
+                          src={`/avatars/${item.profile_name.toLowerCase()}.jpeg`}
+                          alt={item.profile_name}
                           width={56}
                           height={56}
                           className="h-full w-full object-cover"
                         />
                       </div>
 
-                      <span className="text-lg font-semibold text-[#2b2b2b] md:text-3xl">
-                        {item.name.toUpperCase()}
-                      </span>
+                      <span>{item.profile_name.toUpperCase()}</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="hidden h-4 w-40 overflow-hidden rounded-full bg-white md:block">
-                        <div
-                          className="h-full rounded-full bg-[#9db7cb]"
-                          style={{ width }}
-                        />
-                      </div>
+                    <div className="h-4 overflow-hidden rounded-full bg-white">
+                      <div
+                        className="h-full rounded-full bg-[#9db7cb]"
+                        style={{ width }}
+                      />
+                    </div>
 
-                      <div className="text-lg font-semibold text-[#2b2b2b] md:text-2xl">
-                        {item.total}
-                      </div>
+                    <div className="text-right text-2xl font-semibold text-[#2b2b2b] md:text-4xl">
+                      {total}
                     </div>
                   </div>
                 );
@@ -140,10 +110,10 @@ export default function PublicRankingPage() {
 
             <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
               {drinks.map((drink) => {
-                const totalDrink =
-                  data.Bianca[drink.id] +
-                  data.Samira[drink.id] +
-                  data.Luciana[drink.id];
+                const totalDrink = rows.reduce(
+                  (acc, row) => acc + row[drink.id],
+                  0,
+                );
 
                 return (
                   <div
@@ -157,7 +127,7 @@ export default function PublicRankingPage() {
                     </h4>
 
                     <p className="mt-2 text-lg font-medium text-[#2b2b2b] md:text-3xl">
-                      {totalDrink}
+                      {loading ? "..." : totalDrink}
                     </p>
                   </div>
                 );
